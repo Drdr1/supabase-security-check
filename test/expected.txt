@@ -1,0 +1,20 @@
+critical policy_open_read public.orders  (policy "orders readable")
+critical rls_disabled public.profiles
+critical auth_users_exposed public.user_emails
+high security_definer_function reset_order(integer)
+medium security_definer_function get_all_profiles()
+medium security_definer_function all_notes()
+low security_definer_function get_my_order(integer)
+low security_definer_function submit_by_token(text,text)
+high policy_user_metadata public.documents  (policy "admins read docs")
+high view_bypasses_rls public.order_summary
+high public_bucket storage bucket "invoices"
+high policy_open_write storage.objects  (policy "anyone uploads")
+medium function_search_path_mutable get_all_profiles()
+medium policy_open_write public.feedback  (policy "anyone can submit")
+medium policy_open_read public.notes  (policy "notes for users")
+medium matview_exposed public.order_stats
+low policy_open_read public.countries  (policy "countries readable")
+low policy_uid_not_wrapped public.documents  (policy "admins read docs")
+low policy_uid_not_wrapped public.tasks  (policy "own tasks")
+info rls_no_policy public.audit_log

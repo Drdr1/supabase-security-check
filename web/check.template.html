@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Supabase Security Check | DerOps</title>
+<meta name="description" content="Free, read-only check for Supabase projects. Find tables, policies, views and buckets that expose your data to anyone with your anon key. Runs in your own SQL editor; nothing leaves your browser.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --page: #E9EDF1;
+  --ink: #16213A;
+  --ink-soft: #46516A;
+  --surface: #FFFFFF;
+  --rule: #C9D1DB;
+  --critical: #B42318;
+  --high: #C2410C;
+  --medium: #A16207;
+  --low: #2F5D8A;
+  --info: #5B6675;
+  --pass: #2E6B3F;
+  --focus: #2F5D8A;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: "Archivo", system-ui, sans-serif;
+  font-stretch: 100%;
+  font-size: 17px;
+  line-height: 1.55;
+}
+.wrap { max-width: 760px; margin: 0 auto; padding: 0 20px; }
+a { color: var(--ink); text-underline-offset: 3px; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+code, pre, textarea { font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+h1, h2, .wide {
+  font-stretch: 125%;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.08;
+}
+h1 { font-size: clamp(2rem, 6vw, 3.1rem); margin: 0 0 18px; }
+h2 { font-size: clamp(1.45rem, 3.6vw, 1.9rem); margin: 0 0 12px; }
+h3 { font-size: 1.05rem; margin: 0 0 4px; font-weight: 700; }
+p { margin: 0 0 14px; }
+.lede { font-size: 1.15rem; color: var(--ink-soft); max-width: 34em; }
+
+/* ---------- header ---------- */
+.top { padding: 22px 0; }
+.top .wrap { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.brand { font-stretch: 125%; font-weight: 800; text-decoration: none; font-size: 1.05rem; }
+.top nav a { color: var(--ink-soft); font-size: .95rem; }
+
+/* ---------- hero ---------- */
+.hero { padding: 36px 0 56px; }
+.hero .wrap { display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: center; }
+.hero-note { font-size: .95rem; color: var(--ink-soft); margin-top: 22px; }
+
+/* ---------- the tag ---------- */
+.tag {
+  --tone: var(--ink);
+  position: relative;
+  width: 210px;
+  padding: 46px 22px 22px;
+  background: var(--surface);
+  border: 2px solid var(--ink);
+  clip-path: polygon(22% 0, 78% 0, 100% 14%, 100% 100%, 0 100%, 0 14%);
+  transform: rotate(-4deg);
+  text-align: center;
+}
+.tag::before { /* punched hole */
+  content: "";
+  position: absolute; top: 14px; left: 50%;
+  width: 18px; height: 18px; margin-left: -9px;
+  border-radius: 50%;
+  background: var(--page);
+  box-shadow: inset 0 0 0 2px var(--ink);
+}
+.tag::after { /* clipped corners lose the border, redraw them */
+  content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(to bottom right, transparent calc(50% - 1.4px), var(--ink) calc(50% - 1.4px), var(--ink) calc(50% + 1.4px), transparent calc(50% + 1.4px)) left top / 22% 14% no-repeat,
+    linear-gradient(to bottom left, transparent calc(50% - 1.4px), var(--ink) calc(50% - 1.4px), var(--ink) calc(50% + 1.4px), transparent calc(50% + 1.4px)) right top / 22% 14% no-repeat;
+  pointer-events: none;
+}
+.tag-title { font-size: .85rem; color: var(--ink-soft); margin: 0; }
+.tag-grade {
+  display: block;
+  font-stretch: 125%; font-weight: 800;
+  font-size: 7rem; line-height: 1;
+  color: var(--tone);
+  margin: 6px 0 4px;
+}
+.tag-sub { font-size: .85rem; margin: 0; color: var(--ink-soft); }
+.tag.big { width: 250px; transform: rotate(-3deg); }
+.tag.big .tag-grade { font-size: 8.5rem; }
+.tag.stamp { animation: stamp .45s cubic-bezier(.2,.9,.3,1.3) both; }
+@keyframes stamp {
+  from { transform: rotate(-12deg) scale(1.35); opacity: 0; }
+  to   { transform: rotate(-3deg) scale(1); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .tag.stamp { animation: none; } }
+
+/* ---------- sections ---------- */
+section.band { padding: 48px 0; border-top: 2px solid var(--ink); }
+.surface { background: var(--surface); }
+
+/* steps: a real sequence, so they are numbered */
+.steps { list-style: none; margin: 28px 0 0; padding: 0; counter-reset: step; }
+.steps > li { counter-increment: step; position: relative; padding: 0 0 34px 58px; }
+.steps > li::before {
+  content: counter(step);
+  position: absolute; left: 0; top: -4px;
+  width: 38px; height: 38px;
+  display: grid; place-items: center;
+  border: 2px solid var(--ink); border-radius: 50%;
+  font-stretch: 125%; font-weight: 800;
+}
+.steps > li:not(:last-child)::after {
+  content: ""; position: absolute; left: 19px; top: 40px; bottom: 6px;
+  border-left: 2px dotted var(--rule);
+}
+.steps p { color: var(--ink-soft); }
+
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button, .btn {
+  font: inherit; font-weight: 700;
+  border: 2px solid var(--ink);
+  background: var(--surface); color: var(--ink);
+  padding: 10px 16px; border-radius: 4px;
+  cursor: pointer; text-decoration: none;
+  display: inline-flex; align-items: center; gap: 8px;
+}
+button.primary, .btn.primary { background: var(--ink); color: var(--surface); }
+button:hover, .btn:hover { box-shadow: 3px 3px 0 var(--ink); }
+button.primary:hover, .btn.primary:hover { box-shadow: 3px 3px 0 var(--low); }
+button.quiet { border-color: transparent; padding-left: 4px; padding-right: 4px; text-decoration: underline; text-underline-offset: 3px; font-weight: 600; }
+button.quiet:hover { box-shadow: none; }
+.copied { color: var(--pass); font-size: .9rem; font-weight: 600; }
+
+pre {
+  margin: 12px 0 0;
+  padding: 14px 16px;
+  background: var(--ink); color: #E6EBF2;
+  border-radius: 4px;
+  font-size: .82rem; line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+}
+.sql-preview { max-height: 220px; overflow: auto; }
+details.disclose > summary { cursor: pointer; font-weight: 600; margin-top: 12px; }
+
+textarea {
+  width: 100%; min-height: 140px;
+  margin: 10px 0 12px; padding: 12px;
+  border: 2px solid var(--ink); border-radius: 4px;
+  background: var(--surface); color: var(--ink);
+  font-size: .85rem; resize: vertical;
+}
+.error {
+  border-left: 4px solid var(--critical);
+  background: #FBEDEC; padding: 10px 14px; margin: 0 0 12px;
+}
+
+/* ---------- results ---------- */
+#results[hidden] { display: none; }
+.result-head { display: grid; grid-template-columns: auto 1fr; gap: 36px; align-items: center; }
+.verdict { font-size: 1.2rem; font-weight: 600; margin-bottom: 8px; }
+.meta { color: var(--ink-soft); font-size: .95rem; }
+.counts { list-style: none; padding: 0; margin: 18px 0 0; display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.counts li { display: flex; align-items: baseline; gap: 6px; }
+.counts b { font-stretch: 125%; font-size: 1.5rem; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; align-self: center; }
+
+.group { margin-top: 40px; }
+.group h3 { display: flex; align-items: center; gap: 8px; font-size: 1.1rem; margin-bottom: 10px; }
+.finding { border-left: 5px solid var(--tone); background: var(--page); margin: 0 0 10px; }
+.finding > summary { list-style: none; cursor: pointer; padding: 12px 14px; display: flex; gap: 10px; align-items: baseline; }
+.finding > summary::-webkit-details-marker { display: none; }
+.finding > summary::before { content: "+"; font-weight: 800; width: 1ch; flex: none; }
+.finding[open] > summary::before { content: "\2212"; }
+.finding .obj { font-family: "JetBrains Mono", monospace; font-size: .9rem; word-break: break-word; }
+.finding .kind { color: var(--ink-soft); font-size: .9rem; margin-left: auto; white-space: nowrap; }
+.finding .body { padding: 0 14px 14px 38px; }
+.finding .body p { margin-bottom: 6px; }
+.finding .fix-label { font-weight: 700; font-size: .9rem; margin-top: 10px; }
+.finding .row { margin-top: 10px; gap: 4px 14px; }
+.finding .row .fix-label { margin-top: 0; }
+.finding pre { white-space: pre-wrap; word-break: break-word; margin-top: 6px; }
+button.quiet { background: transparent; }
+.caveat { margin-top: 30px; padding: 14px 16px; border: 2px dashed var(--rule); color: var(--ink-soft); }
+
+/* ---------- offer ---------- */
+.offers { margin: 24px 0 18px; border-top: 2px solid var(--ink); }
+.offer { display: grid; grid-template-columns: 1fr auto; gap: 6px 24px; padding: 18px 0; border-bottom: 1px solid var(--rule); }
+.offer p { margin: 0; color: var(--ink-soft); }
+.offer .price { font-stretch: 125%; font-weight: 800; font-size: 1.4rem; text-align: right; }
+.offer .days { display: block; font-size: .85rem; font-weight: 500; color: var(--ink-soft); font-stretch: 100%; }
+
+.covers { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; margin-top: 20px; }
+.covers ul { margin: 0; padding-left: 20px; }
+.covers li { margin-bottom: 6px; }
+
+footer { padding: 36px 0 60px; color: var(--ink-soft); font-size: .95rem; border-top: 2px solid var(--ink); }
+
+@media (max-width: 680px) {
+  .hero .wrap { grid-template-columns: 1fr; }
+  .hero .tag { justify-self: start; margin-left: 8px; }
+  .result-head { grid-template-columns: 1fr; }
+  .covers { grid-template-columns: 1fr; }
+  .steps > li { padding-left: 50px; }
+  .finding .kind { display: none; }
+  .finding .body { padding-left: 14px; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="https://derops.dev">DerOps</a>
+    <nav><a href="#fix">Get it fixed</a></nav>
+  </div>
+</header>
+
+<main>
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <h1>Can anyone with your anon key read your users' data?</h1>
+      <p class="lede">Your Supabase anon key ships inside your frontend. Row Level Security is the only thing between it and your tables. This free check shows where that wall has gaps, in about a minute.</p>
+      <div class="row">
+        <a class="btn primary" href="#run">Check my project</a>
+        <button class="quiet" type="button" id="try-sample">See an example report</button>
+      </div>
+      <p class="hero-note">Read-only. It runs in your own SQL editor, reads table and policy definitions, never your rows, and your result is graded in this browser tab. Nothing is uploaded.</p>
+    </div>
+    <div class="tag" aria-hidden="true">
+      <p class="tag-title">Inspection result</p>
+      <span class="tag-grade">?</span>
+      <p class="tag-sub">Your project</p>
+    </div>
+  </div>
+</section>
+
+<section class="band surface" id="run">
+  <div class="wrap">
+    <h2>Run the check</h2>
+    <ol class="steps">
+      <li>
+        <h3>Copy the query</h3>
+        <p>One SELECT statement. Read it first if you like; it's short and commented.</p>
+        <div class="row">
+          <button class="primary" type="button" data-copy="sql">Copy query</button>
+          <button type="button" id="download-sql">Download audit.sql</button>
+          <span class="copied" role="status" aria-live="polite"></span>
+        </div>
+        <details class="disclose">
+          <summary>Show the query</summary>
+          <pre class="sql-preview" id="sql-preview"></pre>
+        </details>
+      </li>
+      <li>
+        <h3>Run it on your project</h3>
+        <p>In the Supabase dashboard, open SQL Editor, paste, and click Run. You'll get one row with a single <code>report</code> cell. Copy that cell.</p>
+        <details class="disclose">
+          <summary>Prefer the terminal?</summary>
+          <pre id="cli-snippet">{ echo "begin transaction read only;"; cat audit.sql; echo "rollback;"; } \
+  | psql "$DATABASE_URL" -At -q > report.json</pre>
+        </details>
+      </li>
+      <li>
+        <h3>Paste the result here</h3>
+        <label for="report-input">Report from the <code>report</code> cell</label>
+        <textarea id="report-input" spellcheck="false" placeholder='{"tool": "derops-supabase-check", ...}'></textarea>
+        <div id="input-error" class="error" role="alert" hidden></div>
+        <div class="row">
+          <button class="primary" type="button" id="grade-btn">Grade my project</button>
+          <label class="btn" for="report-file">Open report.json</label>
+          <input type="file" id="report-file" accept=".json,.txt,.csv,application/json" hidden>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section class="band surface" id="results" hidden tabindex="-1" aria-labelledby="results-title">
+  <div class="wrap">
+    <div class="result-head">
+      <div class="tag big" id="result-tag">
+        <p class="tag-title">Inspection result</p>
+        <span class="tag-grade" id="grade-letter"></span>
+        <p class="tag-sub" id="grade-date"></p>
+      </div>
+      <div>
+        <h2 id="results-title">Your project</h2>
+        <p class="verdict" id="verdict"></p>
+        <p class="meta" id="meta"></p>
+        <ul class="counts" id="counts"></ul>
+      </div>
+    </div>
+    <div id="groups"></div>
+    <p class="caveat">This check reads your database schema. It doesn't see your app code, edge functions, auth settings or business logic, so a clean grade means no catalog-level exposure, not "fully secure". The fixes are starting points: test them on a branch before production.</p>
+  </div>
+</section>
+
+<section class="band" id="fix">
+  <div class="wrap">
+    <h2>Get it fixed</h2>
+    <p class="lede">I'm Ahmed, a CKA-certified DevOps engineer who reviews Supabase security for founders and small teams. Every engagement is booked and paid through Upwork.</p>
+    <div class="offers" id="offers"></div>
+    <div class="row">
+      <a class="btn primary" id="cta-primary" href="#" target="_blank" rel="noopener">Book a review on Upwork</a>
+      <a class="btn" id="cta-profile" href="#" target="_blank" rel="noopener">View my Upwork profile</a>
+    </div>
+  </div>
+</section>
+
+<section class="band surface">
+  <div class="wrap">
+    <h2>What the check looks for</h2>
+    <div class="covers">
+      <div>
+        <h3>Data exposure</h3>
+        <ul>
+          <li>Tables with Row Level Security turned off</li>
+          <li>Policies that allow everything (<code>using (true)</code>)</li>
+          <li>Views that ignore RLS or expose <code>auth.users</code></li>
+          <li>Materialized views reachable through the API</li>
+          <li>Public storage buckets and open upload policies</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Privilege mistakes</h3>
+        <ul>
+          <li>Policies that trust user-editable <code>user_metadata</code></li>
+          <li>SECURITY DEFINER functions callable through <code>/rpc</code></li>
+          <li>Definer functions without a fixed <code>search_path</code></li>
+          <li>Slow policies that call <code>auth.uid()</code> on every row</li>
+          <li>Extensions installed in an API schema</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Built by Ahmed Darder (DerOps). The query and its tests are open source; see the six most common RLS mistakes, with exploits and fixes, in the <a href="https://github.com/Drdr1/supabase-rls-casebook">Supabase RLS casebook</a>.</p>
+  </div>
+</footer>
+
+<script type="text/plain" id="audit-sql">{{AUDIT_SQL}}</script>
+<script type="application/json" id="sample-report">{{SAMPLE_REPORT}}</script>
+<script>
+/* ---- edit these ---- */
+const CONFIG = {
+  upworkOffer:   "{{UPWORK_OFFER_URL}}",
+  upworkProfile: "{{UPWORK_PROFILE_URL}}",
+  offers: [
+    { name: "Quick audit",  price: "$99",  days: "2 days", text: "I go through your report and send a written, prioritized fix plan." },
+    { name: "Full review",  price: "$250", days: "3–4 days", text: "Manual review of policies, auth, edge functions and storage, with ready-to-run SQL fixes." },
+    { name: "Fix and verify", price: "$450", days: "5–7 days", text: "I apply the fixes, add policy tests that prove each hole is closed, and re-run the check." }
+  ]
+};
+
+const SEVERITIES = ["critical", "high", "medium", "low", "info"];
+const SEV_NAME = { critical: "Critical", high: "High", medium: "Medium", low: "Low", info: "Info" };
+const CHECK_NAME = {
+  rls_disabled: "RLS turned off",
+  rls_no_policy: "RLS on, no policies",
+  policy_open_read: "Open read policy",
+  policy_open_write: "Open write policy",
+  policy_user_metadata: "Trusts user_metadata",
+  policy_uid_not_wrapped: "Slow policy",
+  auth_users_exposed: "auth.users exposed",
+  view_bypasses_rls: "View bypasses RLS",
+  matview_exposed: "Materialized view exposed",
+  security_definer_function: "Definer function exposed",
+  function_search_path_mutable: "No fixed search_path",
+  public_bucket: "Public bucket",
+  extension_in_api_schema: "Extension in API schema"
+};
+const GRADES = {
+  F: { tone: "var(--critical)", text: "At least one critical issue: some of your data can be reached by people who shouldn't see it." },
+  D: { tone: "var(--high)",     text: "Several high-risk issues that let users reach data or actions they shouldn't." },
+  C: { tone: "var(--medium)",   text: "One high-risk issue to fix, otherwise in decent shape." },
+  B: { tone: "var(--low)",      text: "No high-risk issues. A few medium items worth tightening." },
+  A: { tone: "var(--pass)",     text: "No significant exposure found by this check." }
+};
+
+const $ = (s) => document.querySelector(s);
+const el = (tag, props = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "style") n.style.cssText = v; else if (k in n) n[k] = v; else n.setAttribute(k, v);
+  }
+  for (const k of kids) n.append(k);
+  return n;
+};
+
+const SQL = $("#audit-sql").textContent.replace(/^\n/, "");
+$("#sql-preview").textContent = SQL;
+
+/* links + offers */
+const hasLink = (u) => /^https:\/\//.test(u);
+for (const [id, url] of [["#cta-primary", CONFIG.upworkOffer], ["#cta-profile", CONFIG.upworkProfile]]) {
+  if (hasLink(url)) $(id).href = url; else $(id).hidden = true;
+}
+for (const o of CONFIG.offers) {
+  $("#offers").append(el("div", { className: "offer" },
+    el("div", {}, el("h3", { textContent: o.name }), el("p", { textContent: o.text })),
+    el("div", { className: "price" }, o.price, el("span", { className: "days", textContent: o.days }))
+  ));
+}
+
+/* clipboard */
+async function copyText(text, statusEl) {
+  try { await navigator.clipboard.writeText(text); }
+  catch {
+    const t = el("textarea", { value: text, style: "position:fixed;opacity:0" });
+    document.body.append(t); t.select(); document.execCommand("copy"); t.remove();
+  }
+  if (statusEl) { statusEl.textContent = "Copied"; setTimeout(() => (statusEl.textContent = ""), 2000); }
+}
+document.querySelector('[data-copy="sql"]').addEventListener("click", (e) =>
+  copyText(SQL, e.currentTarget.parentElement.querySelector(".copied")));
+$("#download-sql").addEventListener("click", () => {
+  const a = el("a", { href: URL.createObjectURL(new Blob([SQL], { type: "text/plain" })), download: "audit.sql" });
+  document.body.append(a); a.click(); a.remove();
+});
+
+/* parsing: accepts the raw cell, a CSV/JSON export, or text around it */
+function parseReport(text) {
+  text = text.trim();
+  if (!text) throw new Error("Paste the contents of the report cell first.");
+  const start = text.indexOf("{"), end = text.lastIndexOf("}");
+  if (start < 0 || end < start) throw new Error("That doesn't look like a report. Copy the single cell from the report column, it starts with {\"tool\".");
+  let body = text.slice(start, end + 1), data;
+  try { data = JSON.parse(body); }
+  catch {
+    try { data = JSON.parse(body.replace(/""/g, '"')); }          // CSV export doubles quotes
+    catch { throw new Error("The report is cut off or changed. Copy the whole cell again, or download the result and open the file here."); }
+  }
+  if (typeof data.report === "string") data = JSON.parse(data.report);  // JSON export wraps it
+  if (Array.isArray(data) && data[0] && data[0].report) data = typeof data[0].report === "string" ? JSON.parse(data[0].report) : data[0].report;
+  if (!data || data.tool !== "derops-supabase-check" || !Array.isArray(data.findings))
+    throw new Error("This JSON isn't from the security check. Run the query from step 1 and paste its report cell.");
+  return data;
+}
+
+function gradeOf(s) {
+  if (s.critical > 0) return "F";
+  if (s.high >= 2) return "D";
+  if (s.high === 1) return "C";
+  if (s.medium > 0) return "B";
+  return "A";
+}
+
+function render(data) {
+  const s = Object.fromEntries(SEVERITIES.map((k) => [k, data.findings.filter((f) => f.severity === k).length]));
+  const g = gradeOf(s);
+
+  const tag = $("#result-tag");
+  tag.style.setProperty("--tone", GRADES[g].tone);
+  $("#grade-letter").textContent = g;
+  const when = data.generated_at ? new Date(data.generated_at) : new Date();
+  $("#grade-date").textContent = isNaN(when) ? "" : when.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+  tag.classList.remove("stamp"); void tag.offsetWidth; tag.classList.add("stamp");
+
+  $("#verdict").textContent = GRADES[g].text;
+  const st = data.stats || {};
+  $("#meta").textContent = [
+    st.tables != null && `${st.tables} tables, ${st.tables_rls_on} with RLS on`,
+    st.policies != null && `${st.policies} policies`,
+    st.definer_functions_not_graded > 0 && `${st.definer_functions_not_graded} definer functions check their callers and aren't graded here; a manual review covers them`,
+    data.postgres && `Postgres ${String(data.postgres).split(" ")[0]}`
+  ].filter(Boolean).join(". ") + ".";
+
+  const counts = $("#counts"); counts.replaceChildren();
+  for (const k of SEVERITIES) {
+    counts.append(el("li", {}, el("span", { className: "dot", style: `background:var(--${k})` }),
+      el("b", { textContent: s[k] }), SEV_NAME[k]));
+  }
+
+  const groups = $("#groups"); groups.replaceChildren();
+  if (!data.findings.length) {
+    groups.append(el("div", { className: "group" }, el("p", { textContent: "No findings. Nothing in your schema is exposed in the ways this check looks for." })));
+  }
+  for (const k of SEVERITIES) {
+    const list = data.findings.filter((f) => f.severity === k);
+    if (!list.length) continue;
+    const box = el("div", { className: "group" },
+      el("h3", {}, el("span", { className: "dot", style: `background:var(--${k})` }), `${SEV_NAME[k]} (${list.length})`));
+    for (const f of list) {
+      const fixPre = el("pre", { textContent: f.fix || "" });
+      const status = el("span", { className: "copied", role: "status" });
+      const copyBtn = el("button", { type: "button", className: "quiet", textContent: "Copy fix" });
+      copyBtn.addEventListener("click", () => copyText(f.fix || "", status));
+      box.append(el("details", { className: "finding", style: `--tone:var(--${k})`, open: k === "critical" || k === "high" },
+        el("summary", {}, el("span", { className: "obj", textContent: f.object }),
+                          el("span", { className: "kind", textContent: CHECK_NAME[f.check] || f.check })),
+        el("div", { className: "body" },
+          el("p", { textContent: f.detail }),
+          f.fix ? el("div", {}, el("div", { className: "row" }, el("span", { className: "fix-label", textContent: "Suggested fix" }), copyBtn, status), fixPre) : ""
+        )
+      ));
+    }
+    groups.append(box);
+  }
+
+  const results = $("#results");
+  results.hidden = false;
+  results.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  results.focus({ preventScroll: true });
+}
+
+function showError(msg) { const e = $("#input-error"); e.textContent = msg; e.hidden = false; }
+function run(text) {
+  $("#input-error").hidden = true;
+  try { render(parseReport(text)); } catch (err) { showError(err.message); }
+}
+
+$("#grade-btn").addEventListener("click", () => run($("#report-input").value));
+$("#report-file").addEventListener("change", async (e) => {
+  const file = e.target.files[0]; if (!file) return;
+  const text = await file.text();
+  $("#report-input").value = text;
+  run(text);
+  e.target.value = "";
+});
+$("#try-sample").addEventListener("click", () => {
+  const text = $("#sample-report").textContent;
+  $("#report-input").value = text.trim();
+  run(text);
+});
+</script>
+</body>
+</html>

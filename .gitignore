@@ -1,0 +1,5 @@
+test/sb-local-test/
+test/report-*.json
+report*.json
+!examples/sample-report.json
+__pycache__/

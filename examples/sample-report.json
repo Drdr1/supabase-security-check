@@ -1,0 +1,166 @@
+{
+    "tool": "derops-supabase-check",
+    "stats": {
+        "views": 4,
+        "tables": 9,
+        "policies": 8,
+        "tables_rls_on": 8,
+        "definer_functions": 9,
+        "definer_functions_not_graded": 4
+    },
+    "summary": {
+        "low": 5,
+        "high": 5,
+        "info": 1,
+        "medium": 6,
+        "critical": 3
+    },
+    "version": "1.2",
+    "findings": [
+        {
+            "fix": "drop policy \"orders readable\" on public.orders;  -- replace with e.g. using (user_id = (select auth.uid()))",
+            "check": "policy_open_read",
+            "detail": "USING (true) for anon: anyone with your anon key can read every row. Sensitive-looking columns: address.",
+            "object": "public.orders  (policy \"orders readable\")",
+            "severity": "critical"
+        },
+        {
+            "fix": "alter table public.profiles enable row level security;  -- then add policies scoped to (select auth.uid())",
+            "check": "rls_disabled",
+            "detail": "Row Level Security is OFF. Anyone holding your public anon key (it ships in your frontend) can read every row and insert/update/delete rows through the REST API. Sensitive-looking columns: email, phone.",
+            "object": "public.profiles",
+            "severity": "critical"
+        },
+        {
+            "fix": "revoke all on public.user_emails from anon, authenticated;  -- or move it to a schema the API does not expose",
+            "check": "auth_users_exposed",
+            "detail": "This view reads from auth.users and is reachable through the API, exposing user accounts (columns: email).",
+            "object": "public.user_emails",
+            "severity": "critical"
+        },
+        {
+            "fix": "Use app_metadata (only writable server-side) or a roles table checked with (select auth.uid()).",
+            "check": "policy_user_metadata",
+            "detail": "Policy reads user_metadata from the JWT. Users can set their own user_metadata with supabase.auth.updateUser(), so they can grant themselves this access (e.g. role = admin).",
+            "object": "public.documents  (policy \"admins read docs\")",
+            "severity": "high"
+        },
+        {
+            "fix": "alter view public.order_summary set (security_invoker = true);",
+            "check": "view_bypasses_rls",
+            "detail": "View runs with its owner's privileges (no security_invoker), so RLS on the tables underneath is ignored for whoever queries it.",
+            "object": "public.order_summary",
+            "severity": "high"
+        },
+        {
+            "fix": "revoke execute on function reset_order(integer) from public, anon, authenticated;  -- or add a check on (select auth.uid()) inside",
+            "check": "security_definer_function",
+            "detail": "Anyone with your anon key can call this via /rest/v1/rpc. It runs as its owner (skipping RLS), changes data, and has no visible check on who is calling. If it backs a public form (bookings, sign-ups), make sure it validates every input, only writes what a visitor should, and is rate-limited.",
+            "object": "reset_order(integer)",
+            "severity": "high"
+        },
+        {
+            "fix": "update storage.buckets set public = false where id = 'invoices';  -- then serve files with signed URLs",
+            "check": "public_bucket",
+            "detail": "Public bucket: every file is downloadable by anyone with its URL, no login needed. Fine for avatars or marketing images, not for user documents.",
+            "object": "storage bucket \"invoices\"",
+            "severity": "high"
+        },
+        {
+            "fix": "drop policy \"anyone uploads\" on storage.objects;  -- restrict to: to authenticated with check (bucket_id = '...' and owner = (select auth.uid()))",
+            "check": "policy_open_write",
+            "detail": "Anyone with your anon key can upload files to your project. That invites abuse: malware hosting, phishing files and a growing storage bill.",
+            "object": "storage.objects  (policy \"anyone uploads\")",
+            "severity": "high"
+        },
+        {
+            "fix": "revoke execute on function all_notes() from public, anon, authenticated;  -- or add a check on (select auth.uid()) inside",
+            "check": "security_definer_function",
+            "detail": "Any signed-in user can call this via /rest/v1/rpc. It runs as its owner (skipping RLS) and has no visible check on who is calling, so every user gets the same access.",
+            "object": "all_notes()",
+            "severity": "medium"
+        },
+        {
+            "fix": "alter function get_all_profiles() set search_path = '';  -- and schema-qualify names inside it",
+            "check": "function_search_path_mutable",
+            "detail": "SECURITY DEFINER function without a fixed search_path can be tricked into running objects a caller controls.",
+            "object": "get_all_profiles()",
+            "severity": "medium"
+        },
+        {
+            "fix": "revoke execute on function get_all_profiles() from public, anon, authenticated;  -- or add a check on (select auth.uid()) inside",
+            "check": "security_definer_function",
+            "detail": "Anyone with your anon key can call this via /rest/v1/rpc. It runs as its owner (skipping RLS) and has no visible check on who is calling. Fine only if everything it returns is meant to be public.",
+            "object": "get_all_profiles()",
+            "severity": "medium"
+        },
+        {
+            "fix": "drop policy \"anyone can submit\" on public.feedback;  -- scope with: with check (user_id = (select auth.uid()))",
+            "check": "policy_open_write",
+            "detail": "Anyone with your anon key can insert rows. Fine for a public form if intended, but add validation and rate limiting.",
+            "object": "public.feedback  (policy \"anyone can submit\")",
+            "severity": "medium"
+        },
+        {
+            "fix": "drop policy \"notes for users\" on public.notes;  -- replace with e.g. using (user_id = (select auth.uid()))",
+            "check": "policy_open_read",
+            "detail": "USING (true) for authenticated: any signed-up user can read every row, and signup is usually open to anyone.",
+            "object": "public.notes  (policy \"notes for users\")",
+            "severity": "medium"
+        },
+        {
+            "fix": "revoke select on public.order_stats from anon, authenticated;  -- serve it through a function or a private schema",
+            "check": "matview_exposed",
+            "detail": "Materialized views cannot have RLS. Everything in it is readable by anyone with your anon key.",
+            "object": "public.order_stats",
+            "severity": "medium"
+        },
+        {
+            "fix": "revoke execute on function get_my_order(integer) from public, anon;  -- signed-in users keep access",
+            "check": "security_definer_function",
+            "detail": "Anonymous visitors can call this via /rest/v1/rpc. It does check the caller, so this is defense in depth: if it isn't meant to be public, revoking anon access removes the attack surface entirely.",
+            "object": "get_my_order(integer)",
+            "severity": "low"
+        },
+        {
+            "fix": "drop policy \"countries readable\" on public.countries;  -- replace with e.g. using (user_id = (select auth.uid()))",
+            "check": "policy_open_read",
+            "detail": "USING (true) for authenticated on a table with no owner column: this looks like shared reference data that every signed-in user may read. Fine if so.",
+            "object": "public.countries  (policy \"countries readable\")",
+            "severity": "low"
+        },
+        {
+            "fix": "Wrap it: (select auth.uid()) instead of auth.uid().",
+            "check": "policy_uid_not_wrapped",
+            "detail": "auth.uid()/auth.jwt() is called once per row instead of once per query. Big slowdown on large tables.",
+            "object": "public.documents  (policy \"admins read docs\")",
+            "severity": "low"
+        },
+        {
+            "fix": "Wrap it: (select auth.uid()) instead of auth.uid().",
+            "check": "policy_uid_not_wrapped",
+            "detail": "auth.uid()/auth.jwt() is called once per row instead of once per query. Big slowdown on large tables.",
+            "object": "public.tasks  (policy \"own tasks\")",
+            "severity": "low"
+        },
+        {
+            "fix": "revoke execute on function submit_by_token(text,text) from public, anon;  -- signed-in users keep access",
+            "check": "security_definer_function",
+            "detail": "Anonymous visitors can call this via /rest/v1/rpc. It does require a token, so this is defense in depth: if it isn't meant to be public, revoking anon access removes the attack surface entirely.",
+            "object": "submit_by_token(text,text)",
+            "severity": "low"
+        },
+        {
+            "fix": "-- if the app needs it: create policy \"...\" on public.audit_log for select to authenticated using (user_id = (select auth.uid()));",
+            "check": "rls_no_policy",
+            "detail": "RLS is on with no policies, so the API can't read or write this table (only service_role can). Fine if intended; if your app uses it, it is silently getting empty results.",
+            "object": "public.audit_log",
+            "severity": "info"
+        }
+    ],
+    "postgres": "16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)",
+    "api_schemas": [
+        "public"
+    ],
+    "generated_at": "2026-10-04T05:26:10.018976+03:00"
+}
