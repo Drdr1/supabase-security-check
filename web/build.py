@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Builds web/dist/check.html from the template, embedding audit.sql and the sample report.
 
+Upwork links come from web/links.json; --offer / --profile override them.
 Usage: python3 web/build.py [--offer URL] [--profile URL]
 """
 import argparse
@@ -9,9 +10,12 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
+links_file = ROOT / "web/links.json"
+links = json.loads(links_file.read_text()) if links_file.exists() else {}
+
 ap = argparse.ArgumentParser()
-ap.add_argument("--offer", default="", help="Upwork project/offer URL for the main button")
-ap.add_argument("--profile", default="", help="Upwork profile URL")
+ap.add_argument("--offer", default=links.get("upwork_offer", ""), help="Upwork project/offer URL for the main button")
+ap.add_argument("--profile", default=links.get("upwork_profile", ""), help="Upwork profile URL")
 args = ap.parse_args()
 
 sql = (ROOT / "audit.sql").read_text()
